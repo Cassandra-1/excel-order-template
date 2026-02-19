@@ -11,7 +11,10 @@ from openpyxl.utils.exceptions import InvalidFileException
 from datetime import datetime
 
 # 导入测试数据配置（从 data_config.py）
-from data_config import SAMPLE_PRODUCTS, SAMPLE_CUSTOMERS, SAMPLE_CUSTOMER_PRICES, SAMPLE_ORDERS
+from data_config import (
+    SAMPLE_PRODUCTS, SAMPLE_CUSTOMERS, SAMPLE_CUSTOMER_PRICES, SAMPLE_ORDERS,
+    TIPS_ORDERS, TIPS_PRINT, TIPS_STATS, COMPANY_INFO
+)
 
 # ==================== 程序开始 ====================
 # 创建工作簿
@@ -121,29 +124,7 @@ ws_orders['L1'].font = Font(bold=True, size=10, color="FFFFFF")
 ws_orders['L1'].fill = PatternFill(start_color="FFC000", end_color="FFC000", fill_type="solid")
 ws_orders['L1'].alignment = Alignment(horizontal='center')
 
-tips_orders = [
-    "【基本操作】",
-    "1. 日期快速填入：Ctrl+; 生成当前日期，可修改为其他日期",
-    "2. 客户/产品：点击单元格选择下拉选项（有完整列表）",
-    "3. 规格：选择产品后自动带出，可根据需要修改",
-    "",
-    "【自动计算】",
-    "4. 单价：优先查询客户报价表，如无则查产品库",
-    "5. 总价：单价×数量自动计算（如填重量则×重量）",
-    "6. 订单号：日期+客户相同会自动继承上行号",
-    "",
-    "【快捷技巧】",
-    "7. 复制行：选中一整行→Ctrl+D下拉填充",
-    "8. 快速输入：同一产品多行可同时选择→Ctrl+D",
-    "9. 批量修改：选中列→Ctrl+H查找替换",
-    "",
-    "【验证和打印】",
-    "10. 打印状态：下拉选择「未打印」或「已打印」",
-    "11. 订单号有效：必须是「YYYYMMDD-序号」格式",
-    "12. 打印模板：在「打印模板」页选择订单号即可预览"
-]
-
-for idx, tip in enumerate(tips_orders, 2):
+for idx, tip in enumerate(TIPS_ORDERS, 2):
     ws_orders[f'L{idx}'] = tip
     if tip.startswith("【"):
         ws_orders[f'L{idx}'].font = Font(bold=True, size=9, color="FFFFFF")
@@ -281,25 +262,22 @@ ws_print = wb.create_sheet("打印模板")
 ws_print['J1'] = "使用说明"
 ws_print['J1'].font = Font(bold=True)
 ws_print['J1'].fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-ws_print['J2'] = "1. 在B5单元格选择订单号"
-ws_print['J3'] = "2. 系统自动显示订单详情"
-ws_print['J4'] = "3. 修改公司信息（1-3行）"
-ws_print['J5'] = "4. 打印：小票纸设置已配置"
-for row in range(2, 6):
-    ws_print[f'J{row}'].fill = PatternFill(start_color="FFFFCC", end_color="FFFFCC", fill_type="solid")
+for idx, tip in enumerate(TIPS_PRINT, 2):
+    ws_print[f'J{idx}'] = tip
+    ws_print[f'J{idx}'].fill = PatternFill(start_color="FFFFCC", end_color="FFFFCC", fill_type="solid")
 
 # ====== 公司信息（可自定义）======
-ws_print['A1'] = "XX商贸有限公司"  # 修改为公司名
+ws_print['A1'] = COMPANY_INFO["name"]
 ws_print['A1'].font = Font(size=14, bold=True)
 ws_print['A1'].alignment = Alignment(horizontal='center')
 ws_print.merge_cells('A1:G1')
 
-ws_print['A2'] = "地址：北京市朝阳区XX路88号"  # 修改为地址
+ws_print['A2'] = COMPANY_INFO["address"]
 ws_print['A2'].font = Font(size=9)
 ws_print['A2'].alignment = Alignment(horizontal='center')
 ws_print.merge_cells('A2:G2')
 
-ws_print['A3'] = "电话：138-0013-8000"  # 修改为电话
+ws_print['A3'] = COMPANY_INFO["phone"]
 ws_print['A3'].font = Font(size=9)
 ws_print['A3'].alignment = Alignment(horizontal='center')
 ws_print.merge_cells('A3:G3')
@@ -329,108 +307,88 @@ for col, header in enumerate(headers, 1):
     cell.alignment = Alignment(horizontal='center')
     cell.fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
 
-# 产品明细数据行 - 直接从订单录入表中引用，不使用数组公式
-# 使用直接行号引用的方式（用户需要在订单录入中将同一订单的数据放在连续行中）
+# 产品明细数据行 - 动态循环生成（支持多达10个产品）
 # 订单录入列：A日期 B客户 C产品名称 D规格 E单价 F数量 G重量 H总价 I备注 J订单号 K打印状态
 # 打印模板列：A序号 B产品名称 C规格 D数量 E单价 F总价 G备注
+# 可修改范围来扩展行数：range(8, 18)=10行，range(8, 23)=15行，range(8, 28)=20行
 
-# 第8行数据 - 显示选中订单号的第1行数据
-ws_print['A8'] = 1
-ws_print['A8'].alignment = Alignment(horizontal='center')
-# 使用MATCH找到订单号在订单录入表中的位置，然后向下读取数据
-ws_print['B8'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$C:$C,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
-ws_print['C8'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$D:$D,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
-ws_print['D8'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$F:$F,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
-ws_print['D8'].alignment = Alignment(horizontal='center')
-ws_print['E8'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$E:$E,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
-ws_print['E8'].number_format = '0.00'
-ws_print['F8'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$H:$H,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
-ws_print['F8'].number_format = '0.00'
-ws_print['G8'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$I:$I,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
-
-# 第9行数据 - 显示选中订单号的第2行数据（第1个匹配+1，仅当订单号相同时）
-ws_print['A9'] = 2
-ws_print['A9'].alignment = Alignment(horizontal='center')
-ws_print['B9'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+1)=$B$5,IFERROR(INDEX(\'订单录入\'!$C:$C,MATCH($B$5,\'订单录入\'!$J:$J,0)+1),""),""))'
-ws_print['C9'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+1)=$B$5,IFERROR(INDEX(\'订单录入\'!$D:$D,MATCH($B$5,\'订单录入\'!$J:$J,0)+1),""),""))'
-ws_print['D9'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+1)=$B$5,IFERROR(INDEX(\'订单录入\'!$F:$F,MATCH($B$5,\'订单录入\'!$J:$J,0)+1),""),""))'
-ws_print['D9'].alignment = Alignment(horizontal='center')
-ws_print['E9'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+1)=$B$5,IFERROR(INDEX(\'订单录入\'!$E:$E,MATCH($B$5,\'订单录入\'!$J:$J,0)+1),""),""))'
-ws_print['E9'].number_format = '0.00'
-ws_print['F9'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+1)=$B$5,IFERROR(INDEX(\'订单录入\'!$H:$H,MATCH($B$5,\'订单录入\'!$J:$J,0)+1),""),""))'
-ws_print['F9'].number_format = '0.00'
-ws_print['G9'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+1)=$B$5,IFERROR(INDEX(\'订单录入\'!$I:$I,MATCH($B$5,\'订单录入\'!$J:$J,0)+1),""),""))'
-
-# 第10行数据 - 显示选中订单号的第3行数据（第1个匹配+2，仅当订单号相同时）
-ws_print['A10'] = 3
-ws_print['A10'].alignment = Alignment(horizontal='center')
-ws_print['B10'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+2)=$B$5,IFERROR(INDEX(\'订单录入\'!$C:$C,MATCH($B$5,\'订单录入\'!$J:$J,0)+2),""),""))'
-ws_print['C10'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+2)=$B$5,IFERROR(INDEX(\'订单录入\'!$D:$D,MATCH($B$5,\'订单录入\'!$J:$J,0)+2),""),""))'
-ws_print['D10'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+2)=$B$5,IFERROR(INDEX(\'订单录入\'!$F:$F,MATCH($B$5,\'订单录入\'!$J:$J,0)+2),""),""))'
-ws_print['D10'].alignment = Alignment(horizontal='center')
-ws_print['E10'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+2)=$B$5,IFERROR(INDEX(\'订单录入\'!$E:$E,MATCH($B$5,\'订单录入\'!$J:$J,0)+2),""),""))'
-ws_print['E10'].number_format = '0.00'
-ws_print['F10'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+2)=$B$5,IFERROR(INDEX(\'订单录入\'!$H:$H,MATCH($B$5,\'订单录入\'!$J:$J,0)+2),""),""))'
-ws_print['F10'].number_format = '0.00'
-ws_print['G10'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+2)=$B$5,IFERROR(INDEX(\'订单录入\'!$I:$I,MATCH($B$5,\'订单录入\'!$J:$J,0)+2),""),""))'
-
-# 第11行数据 - 显示选中订单号的第4行数据（第1个匹配+3，仅当订单号相同时）
-ws_print['A11'] = 4
-ws_print['A11'].alignment = Alignment(horizontal='center')
-ws_print['B11'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+3)=$B$5,IFERROR(INDEX(\'订单录入\'!$C:$C,MATCH($B$5,\'订单录入\'!$J:$J,0)+3),""),""))'
-ws_print['C11'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+3)=$B$5,IFERROR(INDEX(\'订单录入\'!$D:$D,MATCH($B$5,\'订单录入\'!$J:$J,0)+3),""),""))'
-ws_print['D11'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+3)=$B$5,IFERROR(INDEX(\'订单录入\'!$F:$F,MATCH($B$5,\'订单录入\'!$J:$J,0)+3),""),""))'
-ws_print['D11'].alignment = Alignment(horizontal='center')
-ws_print['E11'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+3)=$B$5,IFERROR(INDEX(\'订单录入\'!$E:$E,MATCH($B$5,\'订单录入\'!$J:$J,0)+3),""),""))'
-ws_print['E11'].number_format = '0.00'
-ws_print['F11'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+3)=$B$5,IFERROR(INDEX(\'订单录入\'!$H:$H,MATCH($B$5,\'订单录入\'!$J:$J,0)+3),""),""))'
-ws_print['F11'].number_format = '0.00'
-ws_print['G11'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+3)=$B$5,IFERROR(INDEX(\'订单录入\'!$I:$I,MATCH($B$5,\'订单录入\'!$J:$J,0)+3),""),""))'
-
-# 第12行数据 - 显示选中订单号的第5行数据（第1个匹配+4，仅当订单号相同时）
-ws_print['A12'] = 5
-ws_print['A12'].alignment = Alignment(horizontal='center')
-ws_print['B12'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+4)=$B$5,IFERROR(INDEX(\'订单录入\'!$C:$C,MATCH($B$5,\'订单录入\'!$J:$J,0)+4),""),""))'
-ws_print['C12'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+4)=$B$5,IFERROR(INDEX(\'订单录入\'!$D:$D,MATCH($B$5,\'订单录入\'!$J:$J,0)+4),""),""))'
-ws_print['D12'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+4)=$B$5,IFERROR(INDEX(\'订单录入\'!$F:$F,MATCH($B$5,\'订单录入\'!$J:$J,0)+4),""),""))'
-ws_print['D12'].alignment = Alignment(horizontal='center')
-ws_print['E12'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+4)=$B$5,IFERROR(INDEX(\'订单录入\'!$E:$E,MATCH($B$5,\'订单录入\'!$J:$J,0)+4),""),""))'
-ws_print['E12'].number_format = '0.00'
-ws_print['F12'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+4)=$B$5,IFERROR(INDEX(\'订单录入\'!$H:$H,MATCH($B$5,\'订单录入\'!$J:$J,0)+4),""),""))'
-ws_print['F12'].number_format = '0.00'
-ws_print['G12'] = '=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+4)=$B$5,IFERROR(INDEX(\'订单录入\'!$I:$I,MATCH($B$5,\'订单录入\'!$J:$J,0)+4),""),""))'
+for row_num in range(8, 18):  # 行8到17，共10行
+    offset = row_num - 8  # 偏移量：0, 1, 2, ..., 14
+    
+    # A列：序号
+    ws_print[f'A{row_num}'] = offset + 1
+    ws_print[f'A{row_num}'].alignment = Alignment(horizontal='center')
+    
+    # B列：产品名称 - 第1行使用MATCH，其他行检查订单号匹配
+    if offset == 0:
+        ws_print[f'B{row_num}'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$C:$C,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
+    else:
+        ws_print[f'B{row_num}'] = f'=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset})=$B$5,IFERROR(INDEX(\'订单录入\'!$C:$C,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset}),""),""))'
+    
+    # C列：规格
+    if offset == 0:
+        ws_print[f'C{row_num}'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$D:$D,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
+    else:
+        ws_print[f'C{row_num}'] = f'=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset})=$B$5,IFERROR(INDEX(\'订单录入\'!$D:$D,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset}),""),""))'
+    
+    # D列：数量
+    if offset == 0:
+        ws_print[f'D{row_num}'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$F:$F,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
+    else:
+        ws_print[f'D{row_num}'] = f'=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset})=$B$5,IFERROR(INDEX(\'订单录入\'!$F:$F,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset}),""),""))'
+    ws_print[f'D{row_num}'].alignment = Alignment(horizontal='center')
+    
+    # E列：单价
+    if offset == 0:
+        ws_print[f'E{row_num}'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$E:$E,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
+    else:
+        ws_print[f'E{row_num}'] = f'=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset})=$B$5,IFERROR(INDEX(\'订单录入\'!$E:$E,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset}),""),""))'
+    ws_print[f'E{row_num}'].number_format = '0.00'
+    
+    # F列：总价
+    if offset == 0:
+        ws_print[f'F{row_num}'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$H:$H,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
+    else:
+        ws_print[f'F{row_num}'] = f'=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset})=$B$5,IFERROR(INDEX(\'订单录入\'!$H:$H,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset}),""),""))'
+    ws_print[f'F{row_num}'].number_format = '0.00'
+    
+    # G列：备注
+    if offset == 0:
+        ws_print[f'G{row_num}'] = '=IF($B$5="","",IFERROR(INDEX(\'订单录入\'!$I:$I,MATCH($B$5,\'订单录入\'!$J:$J,0)),""))'
+    else:
+        ws_print[f'G{row_num}'] = f'=IF($B$5="","",IF(INDEX(\'订单录入\'!$J:$J,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset})=$B$5,IFERROR(INDEX(\'订单录入\'!$I:$I,MATCH($B$5,\'订单录入\'!$J:$J,0)+{offset}),""),""))'
 
 # 分隔线
-ws_print['A18'] = "─" * 40
-ws_print['A18'].alignment = Alignment(horizontal='center')
-ws_print.merge_cells('A18:G18')
+ws_print['A19'] = "─" * 40
+ws_print['A19'].alignment = Alignment(horizontal='center')
+ws_print.merge_cells('A19:G19')
 
 # 合计 - 使用SUMIF汇总同一订单的所有金额
-ws_print['E19'] = "合计："
-ws_print['E19'].font = Font(bold=True)
-ws_print['E19'].alignment = Alignment(horizontal='right')
-ws_print['F19'] = '=IF($B$5="","",SUMIF(\'订单录入\'!$J$2:$J$1000,$B$5,\'订单录入\'!$H$2:$H$1000))'
-ws_print['F19'].number_format = '0.00'
-ws_print['F19'].font = Font(size=12, bold=True)
-ws_print['F19'].alignment = Alignment(horizontal='right')
-ws_print['F19'].fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+ws_print['E20'] = "合计："
+ws_print['E20'].font = Font(bold=True)
+ws_print['E20'].alignment = Alignment(horizontal='right')
+ws_print['F20'] = '=IF($B$5="","",SUMIF(\'订单录入\'!$J$2:$J$1000,$B$5,\'订单录入\'!$H$2:$H$1000))'
+ws_print['F20'].number_format = '0.00'
+ws_print['F20'].font = Font(size=12, bold=True)
+ws_print['F20'].alignment = Alignment(horizontal='right')
+ws_print['F20'].fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
 # 签字区域
-ws_print['A21'] = "送货人签字：________________"
-ws_print['A21'].font = Font(size=10)
+ws_print['A22'] = "送货人签字：________________"
+ws_print['A22'].font = Font(size=10)
 
-ws_print['D21'] = "收货人签字：________________"
-ws_print['D21'].font = Font(size=10)
+ws_print['D22'] = "收货人签字：________________"
+ws_print['D22'].font = Font(size=10)
 
 # 底部信息
-ws_print['A23'] = "─" * 40
-ws_print['A23'].alignment = Alignment(horizontal='center')
-ws_print.merge_cells('A23:G23')
-
-ws_print['A24'] = "谢谢惠顾，欢迎下次光临！"
-ws_print['A24'].font = Font(size=10, bold=True)
+ws_print['A24'] = "─" * 40
 ws_print['A24'].alignment = Alignment(horizontal='center')
 ws_print.merge_cells('A24:G24')
+
+ws_print['A25'] = "谢谢惠顾，欢迎下次光临！"
+ws_print['A25'].font = Font(size=10, bold=True)
+ws_print['A25'].alignment = Alignment(horizontal='center')
+ws_print.merge_cells('A25:G25')
 
 # 数据验证 - 订单号下拉
 dv_order = DataValidation(type="list", formula1="'订单录入'!$J$2:$J$1000", allow_blank=True)
@@ -447,7 +405,7 @@ ws_print.column_dimensions['F'].width = 8
 ws_print.column_dimensions['G'].width = 10
 
 # 打印设置
-ws_print.print_area = 'A1:G30'
+ws_print.print_area = 'A1:G25'
 ws_print.page_setup.paperSize = 9  # 小票纸
 ws_print.page_setup.orientation = 'portrait'
 ws_print.page_setup.fitToPage = True
@@ -588,16 +546,7 @@ ws_stats['A10'].fill = PatternFill(start_color="FFC000", end_color="FFC000", fil
 ws_stats.merge_cells('A10:E10')
 ws_stats.row_dimensions[10].height = 20
 
-tips = [
-    "1. 开始/结束日期：必须输入日期，格式为 yyyy/mm/dd 或 yyyy-mm-dd",
-    "2. 客户和产品：可选，留空表示显示全部",
-    "3. 数据会根据筛选条件自动计算更新",
-    "4. 总金额：表示该时间段内所有订单的总价合计",
-    "5. 订单总数：表示该时间段内各产品的总数量",
-    "6. 订单行数：表示该时间段内有多少条订单记录"
-]
-
-for idx, tip in enumerate(tips, 11):
+for idx, tip in enumerate(TIPS_STATS, 11):
     ws_stats[f'A{idx}'] = tip
     ws_stats[f'A{idx}'].font = Font(size=9)
     ws_stats[f'A{idx}'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
